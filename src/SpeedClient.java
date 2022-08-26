@@ -52,7 +52,14 @@ public class SpeedClient extends JFrame implements ActionListener {
 	boolean inPlay = false;
 	boolean correct = false;
 	Timer timer;
-	int counter = 10;
+	TimerClass tc;
+	int counter = 60;
+	PreparedStatement insertStatement;
+	Connection con;
+	ResultSet rs;
+	int corrWordCount = 0;
+	TextFieldListener tfl;
+	int max;
 		
 	private static final int FRAME_WIDTH = 400;
 	private static final int FRAME_HEIGHT = 380;
@@ -60,11 +67,11 @@ public class SpeedClient extends JFrame implements ActionListener {
 	public SpeedClient() {
 
 		//Panel
-		createControlPanel();
+		createPanel();
 		
 	}
 
-	private void createControlPanel() {
+	private void createPanel() {
 		// TODO Auto-generated method stub
 		
 		// Top Menu Bar
@@ -111,17 +118,18 @@ public class SpeedClient extends JFrame implements ActionListener {
 		connectButton.addActionListener(new OpenConnectionListener());
 		startButton.addActionListener(new StartListener());
 		//quitButton.addActionListener(new QuitListener());
-		//tf.addActionListener(new TextFieldListener());	
 	}	
 	
 	private JMenuItem createLeaderboard(final String string) {
 		// TODO Auto-generated method stub
 		JMenuItem item = new JMenuItem(string);
-		JLabel lblid, lblsc;
-		JTextField tfid, tfsc;
+		
 		
 		class MenuItemListener implements ActionListener {
-
+			JTextArea idTA, scTA;
+			ResultSet rs;
+			Connection con;
+			
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				// TODO Auto-generated method stub
@@ -131,31 +139,51 @@ public class SpeedClient extends JFrame implements ActionListener {
 			private void openLeaderboard() {
 				// TODO Auto-generated method stub
 				JFrame leaderboard = new JFrame();
-				leaderboard.setSize(200, 200);
+				
+				JPanel idPanel = new JPanel();
+				idTA = new JTextArea(20,3);
+				idTA.setEditable(false);
+				//idTA.setComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT);
+				idPanel.add(idTA);
+				idPanel.setBorder(new TitledBorder(new EtchedBorder(), "ID"));
+				leaderboard.add(idPanel, BorderLayout.WEST);
+				
+				
+				JPanel scPanel = new JPanel();
+				scTA = new JTextArea(20, 3);
+				scTA.setEditable(false);
+				scPanel.add(scTA);
+				scPanel.setBorder(new TitledBorder(new EtchedBorder(), "Score"));
+				leaderboard.add(scPanel, BorderLayout.EAST);
+				
+				
+				populateLeaderboard();
+				
+				leaderboard.setSize(120,300);
 				leaderboard.setTitle("Leaderboard");
-				
-				JPanel lbpanel = new JPanel();
-
-				
-				displayLeaderBoard();
-				
 				leaderboard.setVisible(true);
 			}
 
-			private void displayLeaderBoard() {
+			private void populateLeaderboard() {
 				// TODO Auto-generated method stub
-				ResultSet rs = null;
 				try {
-					if (rs == null) {
-						Class.forName("org.sqlite.JDBC");
-						Connection con = DriverManager.getConnection("jdbc:sqlite:leaderboard.db");
-						String sql = "SELECT * FROM Leaderboard";
-						PreparedStatement statement = con.prepareStatement(sql);
-						rs = statement.executeQuery();
-						
-					}
-				} catch(Exception e) {
+					con = DriverManager.getConnection("jdbc:sqlite:leaderboard.db");
+				} catch (SQLException e) {
 					e.printStackTrace();
+				}
+				
+				String query = "SELECT * FROM Leaderboard ORDER BY 2 DESC";
+				
+				try {
+					PreparedStatement ps = con.prepareStatement(query);
+					rs = ps.executeQuery();
+					
+					while (rs.next()) {
+						idTA.append(String.valueOf(rs.getInt("id")) + "\n");
+						scTA.append(String.valueOf(rs.getInt("score")) + "\n");
+					}
+				} catch (SQLException e1) {
+					e1.printStackTrace();
 				}
 			}
 		}
@@ -163,9 +191,33 @@ public class SpeedClient extends JFrame implements ActionListener {
 		item.addActionListener(listener);
 		return item;
 	}
-
-	public void setInPlay(boolean inPlay) {
-		this.inPlay = inPlay;
+	
+	public void saveScore() {
+		tf.removeActionListener(tfl);
+		
+		try {
+			con = DriverManager.getConnection("jdbc:sqlite:leaderboard.db");
+		} catch (SQLException ex1) {
+			ex1.printStackTrace();
+		}
+		
+		String insertQuery = "INSERT INTO Leaderboard (id, score) VALUES (?,?)";
+		String idQuery = "SELECT max(id) FROM Leaderboard";
+		
+		try {
+			PreparedStatement ps = con.prepareStatement(idQuery);
+			rs = ps.executeQuery();
+			if (rs.next()) {
+				max = rs.getInt(1);
+			}
+			max++;
+			insertStatement = con.prepareStatement(insertQuery);
+			insertStatement.setInt(1, max);
+			insertStatement.setInt(2, corrWordCount);
+			insertStatement.executeUpdate();
+		} catch (SQLException ex2) {
+			ex2.printStackTrace();
+		}
 	}
 	
 	class QuitListener implements ActionListener {
@@ -173,13 +225,7 @@ public class SpeedClient extends JFrame implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			// TODO Auto-generated method stub
-			try {
-				inPlay = false;
-				toServer.writeBoolean(inPlay);
-				toServer.flush();
-			} catch (IOException ex) {
-				System.err.println(ex);
-			}
+			tc.counter = 0;
 		}
 		
 	}
@@ -190,7 +236,7 @@ public class SpeedClient extends JFrame implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			// TODO Auto-generated method stub
 			inPlay = true;
-			tf.addActionListener(new TextFieldListener());
+			tf.addActionListener(tfl = new TextFieldListener());
 			quitButton.addActionListener(new QuitListener());
 			try {
 				fromServer = new DataInputStream(socket.getInputStream());
@@ -203,7 +249,7 @@ public class SpeedClient extends JFrame implements ActionListener {
 				toServer.writeBoolean(inPlay);
 				toServer.flush();
 				
-				TimerClass tc = new TimerClass(counter);
+				tc = new TimerClass(counter);
 				timer = new Timer(1000, tc);
 				timer.start();
 			} catch (IOException ex) {
@@ -232,6 +278,7 @@ public class SpeedClient extends JFrame implements ActionListener {
 				timer.stop();
 				inPlay = false;
 				tf.setEditable(false);
+				saveScore();
 			}
 		}
 	}
@@ -272,7 +319,7 @@ public class SpeedClient extends JFrame implements ActionListener {
 			try {
 				quitButton.addActionListener(new QuitListener());
 				String input = tf.getText().trim();
-				
+
 				toServer.writeUTF(input);
 				toServer.flush();
 				
@@ -280,10 +327,15 @@ public class SpeedClient extends JFrame implements ActionListener {
 				
 				if(correct) {
 					tf.setText(null);
+					ta.append("correct: ");
+					corrWordCount++;
 				}
+				else {
+					ta.append("incorrect: ");
+				}
+				ta.append(input + "\n");
 				
 				inPlay = fromServer.readBoolean();
-				
 			} catch (IOException ex) {
 				System.err.println(ex);
 			}
@@ -325,12 +377,6 @@ public class SpeedClient extends JFrame implements ActionListener {
 			}
 		}
 		
-	}
-
-	public static void main(String[] args) {
-		JFrame frame = new SpeedClient();
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.setVisible(true);
 	}
 	*/
 }

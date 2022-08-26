@@ -45,7 +45,7 @@ public class SpeedServer extends JFrame implements Runnable{
 	//Speed test
 	private int clientNo = 0;
 	int correctWordCount = 0;
-	int counter = 10;
+	int counter = 60;
 	ArrayList<String> wordList;
 	String currWord;
 	Timer timer;
@@ -70,7 +70,7 @@ public class SpeedServer extends JFrame implements Runnable{
 		//Timer Panel
 		JPanel timePanel = new JPanel();
 		timeLeft = new JLabel();
-		timeLeft.setText("Time Left: " + counter);
+		timeLeft.setText("Time Left: " + counter + " seconds");
 		timePanel.add(timeLeft);
 		timePanel.setBorder(new TitledBorder(new EtchedBorder(), "Timer"));
 		this.add(timePanel, BorderLayout.NORTH);
@@ -149,17 +149,19 @@ public class SpeedServer extends JFrame implements Runnable{
 							//read string from socket
 							String input = dataInputStream.readUTF();
 							
-							System.out.println("inplay: " + inPlay);
-							System.out.println("input: " + input);
-							
 							//TO-DO compare wa boolean
 							boolean correct = false;
 							if (currWord.equals(input)) {
 								correct = true;
 								nextWord();
 								correctWordCount++;
+								ta.append("correct: ");
 							}
-							System.out.println("correct: " + correct);
+							else {
+								ta.append("incorrect: ");
+							}
+							ta.append(input + "\n");							
+							
 							outputToClient.writeBoolean(correct);
 							outputToClient.writeBoolean(inPlay);
 						}
@@ -279,11 +281,5 @@ public class SpeedServer extends JFrame implements Runnable{
 			}
 		}		
 	} 
-	
-	public static void main(String[] args) {
-	    SpeedServer mts = new SpeedServer();
-	    mts.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-	    mts.setVisible(true);
-	 }
 	*/
 }
